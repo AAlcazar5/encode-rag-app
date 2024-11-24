@@ -6,7 +6,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LinkedSlider } from "@/components/ui/linkedslider";
 import { Textarea } from "@/components/ui/textarea";
-import essay from "@/lib/essay";
 
 const DEFAULT_CHUNK_SIZE = 1024;
 const DEFAULT_CHUNK_OVERLAP = 20;
@@ -14,18 +13,25 @@ const DEFAULT_TOP_K = 2;
 const DEFAULT_TEMPERATURE = 0.1;
 const DEFAULT_TOP_P = 1;
 
+type Character = {
+  name: string;
+  description: string;
+  personality: string;
+};
+
 export default function Home() {
   const answerId = useId();
   const queryId = useId();
   const sourceId = useId();
-  const [text, setText] = useState(essay);
-  const [query, setQuery] = useState("");
+  const [text, setText] = useState("");
+  const [query, setQuery] = useState(
+    "List the name, description, and personality of every character. Ensure to distinctly list the characters as such: Name: Mario, Description: An Italian Plumber with superpowers, Personality: Brave.",
+  );
   const [needsNewIndex, setNeedsNewIndex] = useState(true);
   const [buildingIndex, setBuildingIndex] = useState(false);
   const [runningQuery, setRunningQuery] = useState(false);
   const [nodesWithEmbedding, setNodesWithEmbedding] = useState([]);
   const [chunkSize, setChunkSize] = useState(DEFAULT_CHUNK_SIZE.toString());
-  //^ We're making all of these strings to preserve things like the user typing "0."
   const [chunkOverlap, setChunkOverlap] = useState(
     DEFAULT_CHUNK_OVERLAP.toString(),
   );
@@ -35,6 +41,7 @@ export default function Home() {
   );
   const [topP, setTopP] = useState(DEFAULT_TOP_P.toString());
   const [answer, setAnswer] = useState("");
+  const [characters, setCharacters] = useState<Character[]>([]);
 
   return (
     <>
@@ -82,24 +89,45 @@ export default function Home() {
           </div>
         </div>
         <div className="my-2 flex h-3/4 flex-auto flex-col space-y-2">
-          <Label htmlFor={sourceId}>Source text:</Label>
-          <Textarea
+          <Label htmlFor={sourceId}>Upload source text file:</Label>
+          <Input
             id={sourceId}
-            value={text}
-            className="flex-1"
-            onChange={(e: ChangeEvent<HTMLTextAreaElement>) => {
-              setText(e.target.value);
-              setNeedsNewIndex(true);
+            type="file"
+            accept=".txt"
+            onChange={(e: ChangeEvent<HTMLInputElement>) => {
+              const file = e.target.files?.[0];
+              if (file) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                  const fileContent = event.target?.result as string;
+                  setText(fileContent);
+                  setNeedsNewIndex(true);
+                };
+                if (file.type != "text/plain") {
+                  console.error(`${file.type} parsing not implemented`);
+                  setText("Error");
+                } else {
+                  reader.readAsText(file);
+                }
+              }
             }}
           />
+          {text && (
+            <Textarea
+              value={text}
+              readOnly
+              placeholder="File contents will appear here"
+              className="flex-1"
+            />
+          )}
         </div>
         <Button
+          className="w-full"
           disabled={!needsNewIndex || buildingIndex || runningQuery}
           onClick={async () => {
             setAnswer("Building index...");
             setBuildingIndex(true);
             setNeedsNewIndex(false);
-            // Post the text and settings to the server
             const result = await fetch("/api/splitandembed", {
               method: "POST",
               headers: {
@@ -128,7 +156,7 @@ export default function Home() {
           {buildingIndex ? "Building Vector index..." : "Build index"}
         </Button>
 
-        {!buildingIndex && !needsNewIndex && !runningQuery && (
+        {!buildingIndex && !needsNewIndex && (
           <>
             <LinkedSlider
               className="my-2"
@@ -181,62 +209,81 @@ export default function Home() {
             />
 
             <div className="my-2 space-y-2">
-              <Label htmlFor={queryId}>Query:</Label>
-              <div className="flex w-full space-x-2">
-                <Input
-                  id={queryId}
-                  value={query}
-                  onChange={(e: ChangeEvent<HTMLInputElement>) => {
-                    setQuery(e.target.value);
-                  }}
-                />
-                <Button
-                  type="submit"
-                  disabled={needsNewIndex || buildingIndex || runningQuery}
-                  onClick={async () => {
-                    setAnswer("Running query...");
-                    setRunningQuery(true);
-                    // Post the query and nodesWithEmbedding to the server
-                    const result = await fetch("/api/retrieveandquery", {
-                      method: "POST",
-                      headers: {
-                        "Content-Type": "application/json",
-                      },
-                      body: JSON.stringify({
-                        query,
-                        nodesWithEmbedding,
-                        topK: parseInt(topK),
-                        temperature: parseFloat(temperature),
-                        topP: parseFloat(topP),
-                      }),
-                    });
+              <Button
+                id={queryId}
+                type="submit"
+                className="w-full"
+                disabled={needsNewIndex || buildingIndex || runningQuery}
+                onClick={async () => {
+                  setAnswer("Running query...");
+                  setRunningQuery(true);
+                  const result = await fetch("/api/retrieveandquery", {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                      query,
+                      nodesWithEmbedding,
+                      topK: parseInt(topK),
+                      temperature: parseFloat(temperature),
+                      topP: parseFloat(topP),
+                    }),
+                  });
 
-                    const { error, payload } = await result.json();
+                  const { error, payload } = await result.json();
 
-                    if (error) {
-                      setAnswer(error);
-                    }
+                  if (error) {
+                    setAnswer(error);
+                  }
 
-                    if (payload) {
-                      setAnswer(payload.response);
-                    }
+                  if (payload) {
+                    setCharacters(payload.characters);
+                    setAnswer("Query completed!");
+                  }
 
-                    setRunningQuery(false);
-                  }}
-                >
-                  Submit
-                </Button>
+                  setRunningQuery(false);
+                }}
+              >
+                {runningQuery
+                  ? "Retrieving Characters..."
+                  : "List Characters from Story"}
+              </Button>
+            </div>
+            {characters.length > 0 && (
+              <div className="my-4 max-h-96 max-w-full">
+                <table className="divide-y divide-gray-200">
+                  <thead>
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                        Name
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                        Description
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                        Personality
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200 text-white">
+                    {characters.map((character, index) => (
+                      <tr key={index}>
+                        <td className="whitespace-nowrap px-6 py-4">
+                          {character.name}
+                        </td>
+                        <td className="whitespace-nowrap px-6 py-4">
+                          {character.description}
+                        </td>
+                        <td className="whitespace-nowrap px-6 py-4">
+                          {character.personality}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-            </div>
-            <div className="my-2 flex h-1/4 flex-auto flex-col space-y-2">
-              <Label htmlFor={answerId}>Answer:</Label>
-              <Textarea
-                className="flex-1"
-                readOnly
-                value={answer}
-                id={answerId}
-              />
-            </div>
+            )}
           </>
         )}
       </main>

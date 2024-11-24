@@ -1,5 +1,3 @@
-# LlamaIndex.TS Playground
-
 ## Getting Started
 
 Run `pnpm install` and `pnpm run dev`

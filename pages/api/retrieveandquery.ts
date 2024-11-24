@@ -21,10 +21,16 @@ type Input = {
   topP: number;
 };
 
+type Character = {
+  name: string;
+  description: string;
+  personality: string;
+};
+
 type Output = {
   error?: string;
   payload?: {
-    response: string;
+    characters: Character[];
   };
 };
 
@@ -73,5 +79,35 @@ export default async function handler(
 
   const result = await queryEngine.query(query);
 
-  res.status(200).json({ payload: { response: result.response } });
+  // Log the response for debugging
+  console.log("Query response:", result.response);
+
+  let characters: Character[] = [];
+  try {
+    // Transform the plain text response into structured JSON
+    const entries = result.response
+      .split("\n")
+      .filter((line) => line.trim() !== "");
+    characters = entries
+      .map((entry) => {
+        const match = entry.match(
+          /Name:\s*(.*?),\s*Description:\s*(.*?),\s*Personality:\s*(.*)/,
+        );
+        if (match) {
+          return {
+            name: match[1].trim(),
+            description: match[2].trim(),
+            personality: match[3].trim(),
+          };
+        }
+        return null;
+      })
+      .filter((character) => character !== null) as Character[];
+  } catch (error) {
+    console.error("Failed to parse response:", error);
+    res.status(500).json({ error: "Failed to parse response" });
+    return;
+  }
+
+  res.status(200).json({ payload: { characters } });
 }
