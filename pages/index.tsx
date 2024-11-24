@@ -1,11 +1,11 @@
-import Head from "next/head";
-import { ChangeEvent, useEffect, useId, useRef, useState } from "react";
-
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { CharacterTable } from "@/components/ui/charactertable";
+import { FileUpload } from "@/components/ui/fileupload";
 import { LinkedSlider } from "@/components/ui/linkedslider";
-import { Textarea } from "@/components/ui/textarea";
+import { Settings } from "@/components/ui/settings";
+import { StoryGenerator } from "@/components/ui/storygenerator";
+import Head from "next/head";
+import { useEffect, useId, useRef, useState } from "react";
 
 const DEFAULT_CHUNK_SIZE = 1024;
 const DEFAULT_CHUNK_OVERLAP = 20;
@@ -98,78 +98,19 @@ export default function Home() {
         <title>LlamaIndex.TS Playground</title>
       </Head>
       <main className="mx-2 flex h-full flex-col lg:mx-56">
-        <div className="space-y-2">
-          <Label>Settings:</Label>
-          <div>
-            <LinkedSlider
-              label="Chunk Size:"
-              description={
-                "The maximum size of the chunks we are searching over, in tokens. " +
-                "The bigger the chunk, the more likely that the information you are looking " +
-                "for is in the chunk, but also the more likely that the chunk will contain " +
-                "irrelevant information."
-              }
-              min={1}
-              max={3000}
-              step={1}
-              value={chunkSize}
-              onChange={(value: string) => {
-                setChunkSize(value);
-                setNeedsNewIndex(true);
-              }}
-            />
-          </div>
-          <div>
-            <LinkedSlider
-              label="Chunk Overlap:"
-              description={
-                "The maximum amount of overlap between chunks, in tokens. " +
-                "Overlap helps ensure that sufficient contextual information is retained."
-              }
-              min={1}
-              max={600}
-              step={1}
-              value={chunkOverlap}
-              onChange={(value: string) => {
-                setChunkOverlap(value);
-                setNeedsNewIndex(true);
-              }}
-            />
-          </div>
-        </div>
-        <div className="my-2 flex h-3/4 flex-auto flex-col space-y-2">
-          <Label htmlFor={sourceId}>Upload source text file:</Label>
-          <Input
-            id={sourceId}
-            type="file"
-            accept=".txt"
-            onChange={(e: ChangeEvent<HTMLInputElement>) => {
-              const file = e.target.files?.[0];
-              if (file) {
-                const reader = new FileReader();
-                reader.onload = (event) => {
-                  const fileContent = event.target?.result as string;
-                  setText(fileContent);
-                  setNeedsNewIndex(true);
-                };
-                if (file.type != "text/plain") {
-                  console.error(`${file.type} parsing not implemented`);
-                  setText("Error");
-                } else {
-                  reader.readAsText(file);
-                }
-              }
-            }}
-          />
-          {text && (
-            <Textarea
-              value={text}
-              readOnly
-              placeholder="File contents will appear here"
-              className="flex-1"
-            />
-          )}
-        </div>
+        <Settings
+          chunkSize={chunkSize}
+          setChunkSize={setChunkSize}
+          chunkOverlap={chunkOverlap}
+          setChunkOverlap={setChunkOverlap}
+          setNeedsNewIndex={setNeedsNewIndex}
+        />
+        <FileUpload
+          sourceId={sourceId}
+          text={text}
+          setText={setText}
+          setNeedsNewIndex={setNeedsNewIndex}
+        />
         <Button
           className="w-full"
           disabled={!needsNewIndex || buildingIndex || runningQuery}
@@ -264,7 +205,6 @@ export default function Home() {
                 className="w-full"
                 disabled={needsNewIndex || buildingIndex || runningQuery}
                 onClick={async () => {
-                  // setAnswer("Running query...");
                   setRunningQuery(true);
                   const result = await fetch("/api/retrieveandquery", {
                     method: "POST",
@@ -288,7 +228,6 @@ export default function Home() {
 
                   if (payload) {
                     setCharacters(payload.characters);
-                    // setAnswer("Query completed!");
                   }
 
                   setRunningQuery(false);
@@ -300,56 +239,13 @@ export default function Home() {
               </Button>
             </div>
             {characters.length > 0 && (
-              <div className="text-overflow my-4 max-w-full">
-                <table className="w-full divide-y divide-gray-200">
-                  <thead>
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                        Name
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                        Description
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                        Personality
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200 text-white">
-                    {characters.map((character, index) => (
-                      <tr key={index}>
-                        <td className="whitespace-nowrap px-6 py-4">
-                          {character.name}
-                        </td>
-                        <td className="whitespace-nowrap px-6 py-4">
-                          {character.description}
-                        </td>
-                        <td className="whitespace-nowrap px-6 py-4">
-                          {character.personality}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <CharacterTable characters={characters} />
             )}
-            <div className="my-2 space-y-2">
-              <Button
-                className="w-full"
-                onClick={generateStory}
-                disabled={characters.length === 0}
-              >
-                Generate Story
-              </Button>
-            </div>
-            {answer && (
-              <div
-                className="mt-4 rounded bg-gray-700 p-4 text-white"
-                style={{ whiteSpace: "pre-wrap" }}
-              >
-                {answer}
-              </div>
-            )}
+            <StoryGenerator
+              generateStory={generateStory}
+              characters={characters}
+              answer={answer}
+            />
           </>
         )}
         <div ref={bottomRef} />
