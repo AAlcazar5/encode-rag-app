@@ -1,5 +1,5 @@
 import Head from "next/head";
-import { ChangeEvent, useId, useState } from "react";
+import { ChangeEvent, useEffect, useId, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,6 +42,55 @@ export default function Home() {
   const [topP, setTopP] = useState(DEFAULT_TOP_P.toString());
   const [answer, setAnswer] = useState("");
   const [characters, setCharacters] = useState<Character[]>([]);
+
+  const bottomRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (bottomRef.current) {
+      bottomRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [characters, answer]);
+
+  const generateStory = async () => {
+    if (characters.length === 0) {
+      console.warn("No characters available to generate a story.");
+      return;
+    }
+
+    const characterDetails = characters
+      .map(
+        (char) =>
+          `Name: ${char.name}, Description: ${char.description}, Personality: ${char.personality}`,
+      )
+      .join("\n");
+
+    const storyPrompt = `You are a professional storyteller. Write a single captivating and imaginative short story that includes the following characters. Ensure the story is unique and memorable, with compelling characters and unexpected plot twists. Here are the characters for your story:\n${characterDetails}`;
+
+    console.log("Sending story prompt:", storyPrompt);
+
+    try {
+      const response = await fetch("/api/generateStory", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ prompt: storyPrompt }),
+      });
+
+      if (!response.ok) {
+        console.error("Failed to generate story:", response.statusText);
+        setAnswer("Story generation failed.");
+        return;
+      }
+
+      const { story } = await response.json();
+      console.log("Received story:", story);
+      setAnswer(story || "Story generation failed.");
+    } catch (error) {
+      console.error("Error during story generation:", error);
+      setAnswer("Story generation failed.");
+    }
+  };
 
   return (
     <>
@@ -215,7 +264,7 @@ export default function Home() {
                 className="w-full"
                 disabled={needsNewIndex || buildingIndex || runningQuery}
                 onClick={async () => {
-                  setAnswer("Running query...");
+                  // setAnswer("Running query...");
                   setRunningQuery(true);
                   const result = await fetch("/api/retrieveandquery", {
                     method: "POST",
@@ -239,7 +288,7 @@ export default function Home() {
 
                   if (payload) {
                     setCharacters(payload.characters);
-                    setAnswer("Query completed!");
+                    // setAnswer("Query completed!");
                   }
 
                   setRunningQuery(false);
@@ -251,8 +300,8 @@ export default function Home() {
               </Button>
             </div>
             {characters.length > 0 && (
-              <div className="my-4 max-h-96 max-w-full">
-                <table className="divide-y divide-gray-200">
+              <div className="text-overflow my-4 max-w-full">
+                <table className="w-full divide-y divide-gray-200">
                   <thead>
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
@@ -284,8 +333,26 @@ export default function Home() {
                 </table>
               </div>
             )}
+            <div className="my-2 space-y-2">
+              <Button
+                className="w-full"
+                onClick={generateStory}
+                disabled={characters.length === 0}
+              >
+                Generate Story
+              </Button>
+            </div>
+            {answer && (
+              <div
+                className="mt-4 rounded bg-gray-700 p-4 text-white"
+                style={{ whiteSpace: "pre-wrap" }}
+              >
+                {answer}
+              </div>
+            )}
           </>
         )}
+        <div ref={bottomRef} />
       </main>
     </>
   );
