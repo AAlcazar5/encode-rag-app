@@ -2,6 +2,10 @@
 
 This is a student project from the Encode academy built on top of the LlamaIndex TypeScript Playground (https://github.com/run-llama/ts-playground). The purpose of this app is to build the ability to extract characters from a story (in txt format) and list them in a table format utilizing a RAG pipeline. Once the characters have been extracted, they are then "remixed" into another new custom story utilizing the OpenAI API. 
 
+![alt text](<Screenshot 2024-11-24 at 3.54.33 PM.png>)
+
+![alt text](<Screenshot 2024-11-24 at 4.05.21 PM.png>)
+
 ## Getting Started
 
 - Run `npm install` and `npm run dev`.
